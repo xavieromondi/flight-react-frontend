@@ -18,10 +18,55 @@ function Home() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [date, setDate] = useState("");
-  const navigate = useNavigate();
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSearch = () => {
-    navigate("/find-flights");
+  const handleSearch = async () => {
+    setLoading(true);
+    setError("");
+    setResults([]);
+
+    try {
+      const fromFormatted =
+        from.trim().toLowerCase().replace(/\s+/g, "-") || "nairobi-kenya";
+      const toFormatted =
+        to.trim().toLowerCase().replace(/\s+/g, "-") || "mombasa-kenya";
+
+      const today = new Date(date);
+      if (isNaN(today)) throw new Error("Invalid date");
+
+      const returnDate = new Date(today);
+      returnDate.setDate(today.getDate() + 30);
+
+      const formatDate = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+          2,
+          "0"
+        )}-${String(d.getDate()).padStart(2, "0")}`;
+
+      const dateRange = `${formatDate(today)}_${formatDate(returnDate)}`;
+
+      const query = new URLSearchParams({
+        from: fromFormatted,
+        to: toFormatted,
+        date: dateRange,
+      });
+
+      const res = await fetch(
+        `https://puppeteer-flight-scraper-2.onrender.com/scrape?${query}`
+      );
+      if (!res.ok) {
+        throw new Error(`Server responded with status ${res.status}`);
+      }
+      const data = await res.json();
+      setResults(data);
+    } catch (err) {
+      console.error(err);
+      setError("❌ Failed to fetch flights.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const cityImages = {
@@ -39,7 +84,6 @@ function Home() {
 
   return (
     <>
-      {/* Blue top section */}
       <div className="bg-primary text-white pb-5">
         <header className="d-flex justify-content-between align-items-center p-4">
           <h2 className="fw-bold ms-5 mb-0">Junuve.com</h2>
@@ -67,7 +111,6 @@ function Home() {
             Search deals on flights, routes, and more...
           </p>
 
-          {/* Search Box */}
           <div
             className="bg-white p-3 rounded d-flex flex-wrap align-items-center shadow mt-4"
             style={{ gap: "10px" }}
@@ -105,17 +148,34 @@ function Home() {
             </div>
 
             <button
-              className="btn btn-primary px-4 py-2"
+              className="btn btn-light px-4 py-2"
               onClick={handleSearch}
-              style={{ whiteSpace: "nowrap" }}
+              style={{ whiteSpace: "nowrap", color: "rgb(37, 150, 190)" }}
             >
               Search
             </button>
           </div>
+
+          {loading && <p className="mt-4 text-white">⏳ Fetching flights...</p>}
+          {error && <p className="mt-4 text-danger">{error}</p>}
+          {results.length > 0 && (
+            <div className="bg-white p-4 mt-4 rounded shadow">
+              <h4 className="mb-3">Top Flight Results</h4>
+              <ul className="list-group">
+                {results.map((flight, i) => (
+                  <li key={i} className="list-group-item">
+                    <strong>{flight.airline}</strong> – {flight.from.airport} (
+                    {flight.from.time}, {flight.from.date}) ➡{" "}
+                    {flight.to.airport} ({flight.to.time}, {flight.to.date}) –{" "}
+                    <strong>{flight.price}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* White bottom section */}
       <div className="bg-white text-dark py-5">
         <div className="container">
           <h2 className="mb-4 fw-bold">Trending Destinations</h2>
@@ -140,6 +200,129 @@ function Home() {
                 </div>
               )
             )}
+          </div>
+        </div>
+      </div>
+      <div className="bg-light text-dark pt-5 border-top">
+        <div className="container">
+          <div className="row">
+            {/* Company */}
+            <div className="col-md-3 mb-4">
+              <h6 className="fw-bold">Company</h6>
+              <ul className="list-unstyled">
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Terms & Conditions
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Privacy Policy
+                  </a>
+                </li>
+
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Contact Us
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Platform */}
+            <div className="col-md-3 mb-4">
+              <h6 className="fw-bold">Platform</h6>
+              <ul className="list-unstyled">
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    About
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Jobs
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Team
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Company Info
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Features */}
+            <div className="col-md-3 mb-4">
+              <h6 className="fw-bold">Features</h6>
+              <ul className="list-unstyled">
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Sign In / Register
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Mobile App
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Disruption Protection
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    FAQ
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Discover */}
+            <div className="col-md-3 mb-4">
+              <h6 className="fw-bold">Discover</h6>
+              <ul className="list-unstyled">
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Cheap Flights
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Airlines
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Countries
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-dark text-decoration-none">
+                    Airports
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+          {/* Social Icons */}
+          <div className="d-flex gap-3 justify-content-center mb-4">
+            <i className="bi bi-facebook fs-5"></i>
+            <i className="bi bi-instagram fs-5"></i>
+            <i className="bi bi-twitter fs-5"></i>
+            <i className="bi bi-linkedin fs-5"></i>
+          </div>
+          {/* Bottom Banner */}
+
+          <div className="text-center border-top py-3 mt-4">
+            <small className="text-muted">
+              WE HACK THE SYSTEM, YOU FLY FOR LESS © {new Date().getFullYear()}
+            </small>
           </div>
         </div>
       </div>

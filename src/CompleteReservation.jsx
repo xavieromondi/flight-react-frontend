@@ -5,6 +5,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 function CompleteReservation() {
   const { id } = useParams();
   const navigate = useNavigate();
+
   const [flight, setFlight] = useState(null);
   const [passenger, setPassenger] = useState({
     firstName: "",
@@ -12,6 +13,8 @@ function CompleteReservation() {
     email: "",
     phone: "",
   });
+
+  const [payment, setPayment] = useState({ phone: "", amount: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -29,32 +32,96 @@ function CompleteReservation() {
     setPassenger({ ...passenger, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handlePaymentChange = (e) => {
+    setPayment({ ...payment, [e.target.name]: e.target.value });
+  };
+
+  const validatePhone = (phone) => {
+    return (
+      phone.startsWith("254") && phone.length === 12 && /^\d+$/.test(phone)
+    );
+  };
+
+  const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+
+    if (!validatePhone(payment.phone)) {
+      setError("Phone number must start with 254 and be 12 digits.");
+      return;
+    }
+
+    if (!payment.amount || isNaN(payment.amount)) {
+      setError("Enter a valid amount.");
+      return;
+    }
+
     setLoading(true);
 
-    const reservationRequest = {
-      flightId: id,
-      passengerFirstName: passenger.firstName,
-      passengerLastName: passenger.lastName,
-      passengerEmail: passenger.email,
-      passengerPhone: passenger.phone,
-    };
-
-    fetch("http://localhost:8080/api/reservations/complete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(reservationRequest),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to complete reservation");
-        return res.json();
-      })
-      .then((data) => navigate(`/confirmation/${data.id}`))
-      .catch((err) => {
-        setError("Error: " + err.message);
-        setLoading(false);
+    try {
+      // 1. Initiate STK Push
+      const res = await fetch("http://localhost:8080/api/payment/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payment),
       });
+      const data = await res.json();
+
+      const checkoutRequestId = data.CheckoutRequestID;
+
+      if (!checkoutRequestId) {
+        throw new Error("Failed to initiate STK Push");
+      }
+
+      // 2. Poll payment status (wait for Safaricom callback to backend)
+      let resultCode = null;
+      for (let i = 0; i < 12; i++) {
+        const statusRes = await fetch(
+          `http://localhost:8080/api/payment/status/${checkoutRequestId}`
+        );
+        const statusData = await statusRes.json();
+        if (statusData.resultCode !== undefined) {
+          resultCode = statusData.resultCode;
+          break;
+        }
+        await delay(2500); // wait 2.5 seconds before checking again
+      }
+
+      if (resultCode !== 0) {
+        setError("M-Pesa payment failed or timed out. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      // 3. Proceed with reservation
+      const reservationPayload = {
+        flightId: id,
+        passengerFirstName: passenger.firstName,
+        passengerLastName: passenger.lastName,
+        passengerEmail: passenger.email,
+        passengerPhone: passenger.phone,
+      };
+
+      const reservationRes = await fetch(
+        "http://localhost:8080/api/reservations/complete",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(reservationPayload),
+        }
+      );
+
+      if (!reservationRes.ok) throw new Error("Reservation failed");
+
+      const reservationData = await reservationRes.json();
+      navigate(`/confirmation/${reservationData.id}`);
+    } catch (err) {
+      setError("Error: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (error) {
@@ -79,15 +146,17 @@ function CompleteReservation() {
       {loading && (
         <div className="position-absolute top-0 start-0 w-100 h-100 bg-white bg-opacity-75 d-flex flex-column justify-content-center align-items-center z-3">
           <div className="spinner-border text-primary" role="status" />
-          <p className="mt-3">Processing your reservation...</p>
+          <p className="mt-3">Processing payment and reservation...</p>
         </div>
       )}
+
       <div className="card shadow p-4">
         <h2 className="text-primary mb-3">Complete Reservation</h2>
         <h5 className="mb-3">
           Flight from <strong>{flight.departureCity}</strong> to{" "}
           <strong>{flight.arrivalCity}</strong>
         </h5>
+
         <ul className="list-group list-group-flush mb-4">
           <li className="list-group-item">
             <strong>Airlines:</strong> {flight.operatingAirlines}
@@ -100,8 +169,8 @@ function CompleteReservation() {
           </li>
         </ul>
 
-        <h5 className="mb-3">Passenger Details</h5>
         <form onSubmit={handleSubmit} className="row g-3">
+          <h5 className="mb-3">Passenger Details</h5>
           <div className="col-md-6">
             <input
               name="firstName"
@@ -147,13 +216,38 @@ function CompleteReservation() {
               disabled={loading}
             />
           </div>
-          <div className="col-12 d-grid">
+
+          <h5 className="mt-4 mb-3">M-Pesa Payment</h5>
+          <div className="col-md-6">
+            <input
+              name="phone"
+              className="form-control"
+              placeholder="2547XXXXXXXX"
+              value={payment.phone}
+              onChange={handlePaymentChange}
+              required
+              disabled={loading}
+            />
+          </div>
+          <div className="col-md-6">
+            <input
+              name="amount"
+              className="form-control"
+              placeholder="Amount"
+              value={payment.amount}
+              onChange={handlePaymentChange}
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <div className="col-12 d-grid mt-3">
             <button
               type="submit"
               className="btn btn-success"
               disabled={loading}
             >
-              Confirm Reservation
+              Pay & Confirm Reservation
             </button>
           </div>
         </form>

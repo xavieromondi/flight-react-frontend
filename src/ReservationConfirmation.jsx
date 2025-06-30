@@ -17,6 +17,15 @@ function ReservationConfirmation() {
         <p className="fw-bold">
           Reservation ID: <span className="text-primary">{id}</span>
         </p>
+        <a
+          href={`http://localhost:8080/api/pdf/download/${id}`}
+          className="btn btn-success mt-3"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Download Ticket PDF
+        </a>
+
         <Link to="/" className="btn btn-outline-primary mt-4">
           Back to Home
         </Link>
