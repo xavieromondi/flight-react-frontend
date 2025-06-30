@@ -86,7 +86,7 @@ function Home() {
     <>
       <div className="bg-primary text-white pb-5">
         <header className="d-flex justify-content-between align-items-center p-4">
-          <h2 className="fw-bold ms-5 mb-0">Junuv.com</h2>
+          <h2 className="fw-bold ms-5 mb-0">pagy.com</h2>
           <div className="me-5">
             <Link
               to="/login"
